@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Codenames</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="/static/js/ws.js"></script>
+    <script src="/static/js/sounds.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body hx-ext="ws" ws-connect="/ws/{{ game_id }}">
+    <h1>Codenames: Игра №{{ game_id }}</h1>
+    <div id="game-status" class="game-status" data-game='{"turn": "red", "red_count": 9, "blue_count": 8, "game_ended": false, "winner": null}'>
+        <span id="score">9 - 8</span>
+        <span id="turn" class="turn-red">Ход красных</span>
+        <span id="game-end-message" style="display: none;"></span>
+    </div>
+    
+    <div id="game-board" 
+         hx-get="/api/game/{{ game_id }}" 
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <p>Загрузка игры...</p>
+    </div>
+    
+    <div class="controls-container">
+        <!-- <div class="role-switcher">
+            <span>Игрок</span>
+            <label class="toggle">
+                <input type="checkbox" id="role-toggle" onchange="toggleRole()">
+                <span class="slider"></span>
+            </label>
+            <span>Ведущий</span>
+        </div> -->
+        
+        <div class="game-controls">
+            <button class="btn" onclick="shareGame()">Поделиться игрой</button>
+            <a href="/" class="btn">Новая игра</a>
+        </div>
+        <div class="role-switcher">
+            <span>Игрок</span>
+            <label class="toggle">
+                <input type="checkbox" id="role-toggle" onchange="toggleRole()">
+                <span class="slider"></span>
+            </label>
+            <span>Ведущий</span>
+        </div>
+    </div>
+
+    <script>
+        let currentRole = 'player'; // По умолчанию игрок
+
+        function toggleRole() {
+            const toggle = document.getElementById('role-toggle');
+            currentRole = toggle.checked ? 'spymaster' : 'player';
+            console.log('Switched role to:', currentRole);
+            updateGameBoard();
+        }
+
+        function updateGameBoard() {
+            const role = currentRole;
+            document.getElementById('role-toggle').checked = (role === 'spymaster');
+            htmx.ajax('GET', '/api/game/{{ game_id }}', {
+                target: '#game-board',
+                swap: 'innerHTML',
+                headers: {'X-Custom-Header': 'value'}
+            }).then(response => {
+                console.log('Game board updated for role:', role);
+                const gameData = response.detail.xhr.responseText ? JSON.parse(response.detail.xhr.responseText) : {};
+                document.getElementById('game-board').dataset.game = JSON.stringify(gameData);
+                updateGameStatus(gameData);
+            });
+        }
+
+        function updateGameStatus(data) {
+            const status = document.getElementById('game-status');
+            const turnText = document.getElementById('turn');
+            const score = document.getElementById('score');
+            const gameEndMessage = document.getElementById('game-end-message');
+            const gameData = data || JSON.parse(status.dataset.game || '{}');
+            console.log('Game data in updateGameStatus:', gameData);
+
+            if (gameData.game_ended) {
+                // Скрываем счет и информацию о ходе
+                score.style.display = 'none';
+                turnText.style.display = 'none';
+                // Показываем сообщение о победе
+                gameEndMessage.style.display = 'block';
+                if (gameData.winner) {
+                    gameEndMessage.textContent = gameData.winner === 'red' ? 'Победа красных!' : 'Победа синих!';
+                    gameEndMessage.className = gameData.winner === 'red' ? 'game-end-win-red' : 'game-end-win-blue';
+                }
+            } else {
+                // Показываем счет и информацию о ходе
+                score.style.display = 'inline';
+                score.textContent = `${gameData.red_count || 0} - ${gameData.blue_count || 0}`;
+                turnText.style.display = 'inline';
+                turnText.textContent = gameData.turn === 'red' ? 'Ход красных' : 'Ход синих';
+                turnText.className = (gameData.turn === 'red' ? 'turn-red' : 'turn-blue') || '';
+                // Скрываем сообщение о победе
+                gameEndMessage.style.display = 'none';
+                console.log('Applied class:', turnText.className);
+            }
+        }
+
+        htmx.on("htmx:afterSwap", function(evt) {
+            if (evt.detail.target.id === 'game-board') {
+                try {
+                    const game = JSON.parse(evt.detail.xhr.responseText);
+                    let html = "<div class='grid'>";
+                    game.words.forEach((word, index) => {
+                        const revealed = game.revealed[index];
+                        const role = word[1]; // red, blue, neutral, assassin
+                        let backgroundClass, textClass, clickable;
+
+                        if (currentRole === 'spymaster') {
+                            // Для ведущего: фон серый, если не раскрыто, иначе цвет роли
+                            backgroundClass = revealed ? role : 'hidden';
+                            // Текст всегда в цвете роли для нераскрытых, для раскрытых будет применен стиль из CSS
+                            textClass = revealed ? '' : `text-${role}`;
+                            clickable = 'non-clickable'; // Ведущий не может кликать
+                        } else {
+                            // Для игрока: как раньше
+                            backgroundClass = revealed ? role : 'hidden';
+                            textClass = revealed ? '' : 'text-hidden';
+                            clickable = (currentRole === 'player' && !revealed && !game.game_ended) ? '' : 'non-clickable';
+                        }
+
+                        html += `<div class="card ${backgroundClass} ${clickable}" 
+                                 ${currentRole === 'player' && !revealed && !game.game_ended ? `hx-post="/game/{{ game_id }}/reveal/${index}" hx-trigger="click" hx-swap="none" hx-target="#game-board"` : ''}>
+                                    <span class="${textClass}">${word[0]}</span>
+                                 </div>`;
+                    });
+                    html += "</div>";
+                    evt.detail.target.innerHTML = html;
+                    console.log("Game board updated with cards for role:", currentRole);
+                    htmx.process(document.getElementById('game-board'));
+                    document.getElementById('game-board').dataset.game = JSON.stringify(game);
+                    updateGameStatus(game);
+                } catch (e) {
+                    console.error("Error parsing game data:", e);
+                }
+            }
+        });
+
+        htmx.on("htmx:wsOpen", function(evt) {
+            console.log("HTMX WebSocket connected for game {{ game_id }}");
+        });
+
+        htmx.on("htmx:wsClose", function(evt) {
+            console.log("HTMX WebSocket closed:", evt.detail);
+        });
+
+        htmx.on("htmx:wsMessage", function(evt) {
+            console.log("HTMX WebSocket raw message:", evt.detail.message, typeof evt.detail.message);
+            try {
+                const data = JSON.parse(evt.detail.message);
+                console.log("HTMX WebSocket parsed data:", data);
+                if (data.index !== undefined && String(data.game_id) === "{{ game_id }}") {
+                    console.log("Updating game board for index:", data.index);
+                    
+                    // Получаем текущее состояние игры для определения цвета карточки
+                    const gameBoard = document.getElementById('game-board');
+                    const gameData = gameBoard.dataset.game ? JSON.parse(gameBoard.dataset.game) : {};
+                    
+                    // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
+                    if (gameData.words && gameData.words[data.index]) {
+                        const cardColor = gameData.words[data.index][1];
+                        playCardSound(cardColor);
+                    }
+                    
+                    // Проверяем, изменился ли ход
+                    const prevTurn = gameData.turn;
+                    const newTurn = data.turn;
+                    if (prevTurn && newTurn && prevTurn !== newTurn) {
+                        playTurnChangeSound();
+                    }
+                    
+                    // Проверяем, закончилась ли игра
+                    if (data.game_ended && !gameData.game_ended) {
+                        // Определяем, выиграла ли текущая команда
+                        // Здесь можно добавить логику определения команды игрока
+                        const isWinner = true; // Упрощенно считаем, что игрок всегда в выигрышной команде
+                        playGameEndSound(isWinner);
+                    }
+                    
+                    htmx.ajax('GET', '/api/game/{{ game_id }}', {
+                        target: '#game-board',
+                        swap: 'innerHTML'
+                    }).then(() => {
+                        console.log("Game board updated via HTMX WebSocket");
+                    }).catch((e) => {
+                        console.error("Error updating game board:", e);
+                    });
+                } else if (data.type === "connected") {
+                    console.log("HTMX WebSocket connection confirmed for game:", data.game_id);
+                }
+            } catch (e) {
+                console.error("Error parsing HTMX WebSocket message:", e);
+            }
+        });
+
+        htmx.on("htmx:afterRequest", function(evt) {
+            console.log("HTMX request:", evt.detail.xhr.status, evt.detail.xhr.response);
+            if (evt.detail.xhr.status !== 200) {
+                console.error("Request failed:", evt.detail.xhr.statusText);
+            } else if (evt.detail.elt.classList.contains('card')) {
+                console.log("Triggering game board update after POST");
+                htmx.ajax('GET', '/api/game/{{ game_id }}', {
+                    target: '#game-board',
+                    swap: 'innerHTML'
+                });
+            }
+        });
+
+        function shareGame() {
+            const gameUrl = window.location.href;
+            
+            if (navigator.share) {
+                // Используем Web Share API, если доступно
+                navigator.share({
+                    title: 'Codenames Game',
+                    text: 'Присоединяйтесь к игре Codenames!',
+                    url: gameUrl
+                }).catch(err => {
+                    console.error('Ошибка при попытке поделиться:', err);
+                    fallbackShare();
+                });
+            } else {
+                fallbackShare();
+            }
+            
+            function fallbackShare() {
+                // Резервный вариант - копирование в буфер обмена
+                navigator.clipboard.writeText(gameUrl).then(() => {
+                    alert('Ссылка на игру скопирована в буфер обмена!');
+                }).catch(err => {
+                    console.error('Не удалось скопировать ссылку:', err);
+                    prompt('Скопируйте ссылку на игру:', gameUrl);
+                });
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof htmx === 'undefined') {
+                console.error('HTMX not loaded!');
+            } else {
+                console.log('HTMX loaded successfully');
+                updateGameBoard();
+            }
+        });
+
+        // Резервный WebSocket
+        const ws = new WebSocket('ws://localhost:8000/ws/{{ game_id }}');
+        ws.onopen = () => {
+            console.log('JS WebSocket connected for game {{ game_id }}');
+        };
+        ws.onmessage = (msg) => {
+            console.log('JS WebSocket raw message:', msg.data, typeof msg.data);
+            try {
+                const data = JSON.parse(msg.data);
+                console.log('JS WebSocket parsed data:', data);
+                if (data.index !== undefined && String(data.game_id) === "{{ game_id }}") {
+                    console.log('JS WebSocket updating game board for index:', data.index);
+                    
+                    // Получаем текущее состояние игры для определения цвета карточки
+                    const gameBoard = document.getElementById('game-board');
+                    const gameData = gameBoard.dataset.game ? JSON.parse(gameBoard.dataset.game) : {};
+                    
+                    // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
+                    if (gameData.words && gameData.words[data.index]) {
+                        const cardColor = gameData.words[data.index][1];
+                        playCardSound(cardColor);
+                    }
+                    
+                    // Проверяем, изменился ли ход
+                    const prevTurn = gameData.turn;
+                    const newTurn = data.turn;
+                    if (prevTurn && newTurn && prevTurn !== newTurn) {
+                        playTurnChangeSound();
+                    }
+                    
+                    // Проверяем, закончилась ли игра
+                    if (data.game_ended && !gameData.game_ended) {
+                        // Определяем, выиграла ли текущая команда
+                        // Здесь можно добавить логику определения команды игрока
+                        const isWinner = true; // Упрощенно считаем, что игрок всегда в выигрышной команде
+                        playGameEndSound(isWinner);
+                    }
+                    
+                    htmx.ajax('GET', '/api/game/{{ game_id }}', {
+                        target: '#game-board',
+                        swap: 'innerHTML'
+                    }).then(() => {
+                        console.log('Game board updated via JS WebSocket');
+                    });
+                } else if (data.type === 'connected') {
+                    console.log('JS WebSocket connection confirmed for game:', data.game_id);
+                }
+            } catch (e) {
+                console.error('Error parsing JS WebSocket message:', e);
+            }
+        };
+        ws.onclose = () => {
+            console.log('JS WebSocket closed');
+        };
+        ws.onerror = (e) => {
+            console.error('JS WebSocket error:', e);
+        };
+    </script>
+</body>
+</html>
