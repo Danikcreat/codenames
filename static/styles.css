@@ -11,8 +11,20 @@ body {
 h1, h2, h3, h4, h5, h6, .btn {
     font-family: 'Manrope', sans-serif;
 }
-.game-status {
+.game-status-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
     margin: 10px auto;
+    width: 100%;
+    max-width: 800px;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+
+.game-status {
+    margin: 0 auto;
     padding: 10px;
     background-color: #e0e5e2;
     border-radius: 10px;
@@ -172,7 +184,7 @@ input:checked + .slider:before {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 7px 20px 10px 20px;
+    padding: 10px 20px 10px 20px;
     background-color: #26A69A;
     color: white;
     border: none;
@@ -202,4 +214,32 @@ input:checked + .slider:before {
 
 .sound-btn:hover {
     background-color: #2bbbad;
+}
+
+/* Стили для ссылки "Завершить ход" */
+.end-turn-link {
+    position: absolute;
+    right: 20px;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    color: #26A69A;
+    margin: auto;
+}
+
+.end-turn-link:hover {
+    text-decoration: underline;
+}
+
+.end-turn-link.red-turn {
+    color: #EF5350;
+}
+
+.end-turn-link.blue-turn {
+    color: #42A5F5;
+}
+
+.end-turn-link.hidden {
+    display: none;
 }

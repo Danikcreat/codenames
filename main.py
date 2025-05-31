@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from typing import Optional
 import random
 import json
 import os
@@ -41,6 +42,11 @@ games = {}
 @app.get("/")
 async def home(request: Request):
     return templates.TemplateResponse("home.html", {"request": request})
+
+# Страница с правилами игры
+@app.get("/rules")
+async def rules(request: Request, game_id: Optional[str] = None):
+    return templates.TemplateResponse("rules.html", {"request": request, "game_id": game_id})
 
 # Создание игры
 @app.get("/create-game")
@@ -175,6 +181,36 @@ async def reveal_word(game_id: str, index: int):
         "blue_count": games[game_id]["blue_count"],
         "game_ended": games[game_id]["game_ended"],
         "winner": games[game_id]["winner"]
+    })
+    for player in games[game_id]["players"]:
+        try:
+            await player.send_text(message)
+            print(f"Sent WebSocket message to player in {game_id}: {message}")
+        except Exception as e:
+            print(f"Failed to send WebSocket message in {game_id}: {e}")
+    return {"status": "ok"}
+
+# Передача хода
+@app.post("/game/{game_id}/end-turn")
+async def end_turn(game_id: str):
+    if game_id not in games:
+        raise HTTPException(status_code=404, detail="Game not found")
+    if games[game_id]["game_ended"]:
+        return {"status": "ok"}  # Игра уже окончена
+    
+    # Меняем ход на противоположную команду
+    current_turn = games[game_id]["turn"]
+    games[game_id]["turn"] = "blue" if current_turn == "red" else "red"
+    
+    print(f"Turn ended in game {game_id}, new turn: {games[game_id]['turn']}")
+    message = json.dumps({
+        "game_id": game_id,
+        "turn": games[game_id]["turn"],
+        "red_count": games[game_id]["red_count"],
+        "blue_count": games[game_id]["blue_count"],
+        "game_ended": games[game_id]["game_ended"],
+        "winner": games[game_id]["winner"],
+        "turn_changed": True
     })
     for player in games[game_id]["players"]:
         try:

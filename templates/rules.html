@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Codenames - Правила игры</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background: #2A7B9B;
+            background: linear-gradient(90deg, rgb(152, 237, 83) 0%, rgb(87, 199, 154) 50%, rgb(42, 155, 129) 100%);
+            background-attachment: fixed;
+            font-family: 'Roboto', Arial, sans-serif;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 30px;
+            background-color: white;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        h2, h3 {
+            color: #26A69A;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 0;
+            font-size: 2.5em;
+        }
+        h2 {
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        h3 {
+            margin-top: 25px;
+            font-size: 1.4em;
+        }
+        p {
+            margin-bottom: 15px;
+        }
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 25px;
+            text-align: left;
+        }
+        li {
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        .team-red {
+            color: #D32F2F;
+            font-weight: bold;
+        }
+        .team-blue {
+            color: #1976D2;
+            font-weight: bold;
+        }
+        .neutral {
+            color: #9E9E9E;
+            font-weight: bold;
+            background-color: #fff;
+        }
+        .assassin {
+            color: #212121;
+            font-weight: bold;
+            background-color: #fff;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #fff;
+            border: 2px solid #26A69A;
+            color: #26A69A;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            text-decoration: none;
+        }
+        .btn:hover {
+            background-color: #e1f3f2;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .card-example {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .card {
+            width: 120px;
+            height: 80px;
+            margin: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 10px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .card-red {
+            background-color: #D32F2F;
+        }
+        .card-blue {
+            background-color: #1976D2;
+        }
+        .card-neutral {
+            background-color: #9E9E9E;
+            color: white;
+        }
+        .card-assassin {
+            background-color: #212121;
+        }
+        .note {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-left: 4px solid #26A69A;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 >Правила игры Codenames</h1>
+        
+        <div style="text-align: center; margin-bottom: 20px;">
+            {% if game_id %}
+                <a href="/game/{{ game_id }}" style="color: #26A69A; text-decoration: none; font-weight: bold; margin-right: 20px;">Вернуться к игре</a>
+            {% endif %}
+            <a href="/" style="color: #26A69A; text-decoration: none; font-weight: bold;">Вернуться на главную</a>
+        </div>
+        
+        <h2>Обзор игры</h2>
+        <p>Codenames — это командная игра на ассоциации, в которой игроки делятся на две команды: <span class="team-red">красную</span> и <span class="team-blue">синюю</span>. Цель игры — угадать все свои слова раньше соперников.</p>
+        
+        <h2>Подготовка к игре</h2>
+        <p>На игровом поле расположены 25 карточек со словами. Каждая карточка принадлежит одной из категорий:</p>
+        
+        <div class="card-example">
+            <div class="card card-red">Красная</div>
+            <div class="card card-blue">Синяя</div>
+            <div class="card card-neutral">Нейтральная</div>
+            <div class="card card-assassin">Убийца</div>
+        </div>
+        
+        <ul>
+            <li><span class="team-red">Красные карточки (8-9)</span> — слова, которые должна угадать красная команда</li>
+            <li><span class="team-blue">Синие карточки (8-9)</span> — слова, которые должна угадать синяя команда</li>
+            <li><span class="neutral">Нейтральные карточки (7)</span> — серые карточки, не принадлежащие ни одной из команд</li>
+            <li><span class="assassin">Убийца (1)</span> — карточка, которую нельзя открывать ни одной из команд</li>
+        </ul>
+        
+        <p>Команда, которая ходит первой, получает 9 карточек своего цвета, а вторая команда — 8 карточек.</p>
+        
+        <h2>Роли игроков</h2>
+        <p>В каждой команде есть два типа игроков:</p>
+        <ul>
+            <li><strong>Капитан (Spymaster)</strong> — видит цвета всех карточек и даёт подсказки своей команде</li>
+            <li><strong>Полевые агенты</strong> — пытаются угадать слова своей команды по подсказкам капитана</li>
+        </ul>
+        
+        <h2>Ход игры</h2>
+        <ol>
+            <li>Капитан команды, чей ход сейчас, даёт одну подсказку, состоящую из:
+                <ul>
+                    <li>Одного слова, которое ассоциируется с несколькими словами его команды</li>
+                    <li>Числа, указывающего, сколько слов связано с этой подсказкой</li>
+                </ul>
+                <p>Например: "Природа, 3" — означает, что на поле есть 3 слова, связанных с природой.</p>
+            </li>
+            <li>Полевые агенты обсуждают подсказку и выбирают слова, которые, по их мнению, связаны с ней.</li>
+            <li>Когда агенты выбирают слово, его цвет раскрывается:
+                <ul>
+                    <li>Если цвет совпадает с цветом команды — команда может продолжать угадывать (до числа, указанного в подсказке + 1)</li>
+                    <li>Если цвет не совпадает — ход переходит к другой команде</li>
+                </ul>
+            </li>
+            <li>Команда может в любой момент остановиться и передать ход, даже если не использовала все попытки.</li>
+        </ol>
+        
+        <div class="note">
+            <p><strong>Важно:</strong> Капитан может давать подсказки только словами. Нельзя использовать жесты, намёки или слова, которые видны на поле.</p>
+        </div>
+        
+        <h2>Окончание игры</h2>
+        <p>Игра заканчивается, когда:</p>
+        <ul>
+            <li>Одна из команд открыла все свои карточки — эта команда побеждает</li>
+            <li>Одна из команд открыла карточку "Убийца" — эта команда проигрывает, а противоположная команда побеждает</li>
+        </ul>
+        
+        <h2>Стратегические советы</h2>
+        <ul>
+            <li>Капитанам стоит давать подсказки, связывающие несколько слов, чтобы команда могла открыть больше карточек за один ход</li>
+            <li>Будьте осторожны с подсказками, которые могут привести к карточке "Убийца"</li>
+            <li>Иногда лучше дать подсказку только для одного слова, если это поможет избежать опасных карточек</li>
+            <li>Полевым агентам стоит внимательно анализировать все возможные значения подсказки</li>
+        </ul>
+        
+        <div class="text-center" style="margin-top: 40px;">
+            {% if game_id %}
+                <a href="/game/{{ game_id }}" style="color: #26A69A; text-decoration: none; font-weight: bold; margin-right: 20px;">Вернуться к игре</a>
+            {% endif %}
+            <a href="/" style="color: #26A69A; text-decoration: none; font-weight: bold;">Вернуться на главную</a>
+        </div>
+    </div>
+</body>
+</html>

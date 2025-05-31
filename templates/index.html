@@ -9,10 +9,18 @@
 </head>
 <body hx-ext="ws" ws-connect="/ws/{{ game_id }}">
     <h1>Codenames: Игра №{{ game_id }}</h1>
-    <div id="game-status" class="game-status" data-game='{"turn": "red", "red_count": 9, "blue_count": 8, "game_ended": false, "winner": null}'>
-        <span id="score">9 - 8</span>
-        <span id="turn" class="turn-red">Ход красных</span>
-        <span id="game-end-message" style="display: none;"></span>
+    <div class="game-status-wrapper">
+        <div id="game-status" class="game-status" data-game='{"turn": "red", "red_count": 9, "blue_count": 8, "game_ended": false, "winner": null}'>
+            <span id="score">9 - 8</span>
+            <span id="turn" class="turn-red">Ход красных</span>
+            <span id="game-end-message" style="display: none;"></span>
+        </div>
+        <a id="end-turn-button" class="end-turn-link" 
+           hx-post="/game/{{ game_id }}/end-turn" 
+           hx-swap="none" 
+           hx-target="#game-board" style="color: #26A69A; text-decoration: none; font-weight: bold; margin: auto;;">
+            Завершить ход
+        </a>
     </div>
     
     <div id="game-board" 
@@ -35,6 +43,7 @@
         <div class="game-controls">
             <button class="btn" onclick="shareGame()">Поделиться игрой</button>
             <a href="/" class="btn">Новая игра</a>
+            <a href="/rules?game_id={{ game_id }}" style="color: #26A69A; text-decoration: none; font-weight: bold; margin: auto;;">Правила игры</a>
         </div>
         <div class="role-switcher">
             <span>Игрок</span>
@@ -76,6 +85,7 @@
             const turnText = document.getElementById('turn');
             const score = document.getElementById('score');
             const gameEndMessage = document.getElementById('game-end-message');
+            const endTurnButton = document.getElementById('end-turn-button');
             const gameData = data || JSON.parse(status.dataset.game || '{}');
             console.log('Game data in updateGameStatus:', gameData);
 
@@ -89,6 +99,8 @@
                     gameEndMessage.textContent = gameData.winner === 'red' ? 'Победа красных!' : 'Победа синих!';
                     gameEndMessage.className = gameData.winner === 'red' ? 'game-end-win-red' : 'game-end-win-blue';
                 }
+                // Скрываем кнопку завершения хода
+                endTurnButton.style.display = 'none';
             } else {
                 // Показываем счет и информацию о ходе
                 score.style.display = 'inline';
@@ -99,6 +111,17 @@
                 // Скрываем сообщение о победе
                 gameEndMessage.style.display = 'none';
                 console.log('Applied class:', turnText.className);
+                
+                // Показываем кнопку завершения хода и обновляем её стиль
+                if (currentRole === 'spymaster') {
+                    // Ведущий не может завершать ход
+                    endTurnButton.style.display = 'none';
+                } else {
+                    // Обновляем стиль кнопки в зависимости от текущего хода
+                    endTurnButton.style.display = 'inline';
+                    endTurnButton.className = 'end-turn-link ' + 
+                                             (gameData.turn === 'red' ? 'red-turn' : 'blue-turn');
+                }
             }
         }
 
@@ -155,20 +178,23 @@
             try {
                 const data = JSON.parse(evt.detail.message);
                 console.log("HTMX WebSocket parsed data:", data);
-                if (data.index !== undefined && String(data.game_id) === "{{ game_id }}") {
-                    console.log("Updating game board for index:", data.index);
-                    
-                    // Получаем текущее состояние игры для определения цвета карточки
+                if (String(data.game_id) === "{{ game_id }}") {
+                    // Получаем текущее состояние игры
                     const gameBoard = document.getElementById('game-board');
                     const gameData = gameBoard.dataset.game ? JSON.parse(gameBoard.dataset.game) : {};
                     
-                    // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
-                    if (gameData.words && gameData.words[data.index]) {
-                        const cardColor = gameData.words[data.index][1];
-                        playCardSound(cardColor);
+                    // Обработка раскрытия карточки
+                    if (data.index !== undefined) {
+                        console.log("Updating game board for index:", data.index);
+                        
+                        // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
+                        if (gameData.words && gameData.words[data.index]) {
+                            const cardColor = gameData.words[data.index][1];
+                            playCardSound(cardColor);
+                        }
                     }
                     
-                    // Проверяем, изменился ли ход
+                    // Проверяем, изменился ли ход (при раскрытии карточки или при явном завершении хода)
                     const prevTurn = gameData.turn;
                     const newTurn = data.turn;
                     if (prevTurn && newTurn && prevTurn !== newTurn) {
@@ -183,6 +209,7 @@
                         playGameEndSound(isWinner);
                     }
                     
+                    // Обновляем игровое поле
                     htmx.ajax('GET', '/api/game/{{ game_id }}', {
                         target: '#game-board',
                         swap: 'innerHTML'
@@ -203,7 +230,7 @@
             console.log("HTMX request:", evt.detail.xhr.status, evt.detail.xhr.response);
             if (evt.detail.xhr.status !== 200) {
                 console.error("Request failed:", evt.detail.xhr.statusText);
-            } else if (evt.detail.elt.classList.contains('card')) {
+            } else if (evt.detail.elt.classList.contains('card') || evt.detail.elt.id === 'end-turn-button') {
                 console.log("Triggering game board update after POST");
                 htmx.ajax('GET', '/api/game/{{ game_id }}', {
                     target: '#game-board',
@@ -259,20 +286,23 @@
             try {
                 const data = JSON.parse(msg.data);
                 console.log('JS WebSocket parsed data:', data);
-                if (data.index !== undefined && String(data.game_id) === "{{ game_id }}") {
-                    console.log('JS WebSocket updating game board for index:', data.index);
-                    
-                    // Получаем текущее состояние игры для определения цвета карточки
+                if (String(data.game_id) === "{{ game_id }}") {
+                    // Получаем текущее состояние игры
                     const gameBoard = document.getElementById('game-board');
                     const gameData = gameBoard.dataset.game ? JSON.parse(gameBoard.dataset.game) : {};
                     
-                    // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
-                    if (gameData.words && gameData.words[data.index]) {
-                        const cardColor = gameData.words[data.index][1];
-                        playCardSound(cardColor);
+                    // Обработка раскрытия карточки
+                    if (data.index !== undefined) {
+                        console.log('JS WebSocket updating game board for index:', data.index);
+                        
+                        // Если есть данные о словах, воспроизводим звук в зависимости от цвета карточки
+                        if (gameData.words && gameData.words[data.index]) {
+                            const cardColor = gameData.words[data.index][1];
+                            playCardSound(cardColor);
+                        }
                     }
                     
-                    // Проверяем, изменился ли ход
+                    // Проверяем, изменился ли ход (при раскрытии карточки или при явном завершении хода)
                     const prevTurn = gameData.turn;
                     const newTurn = data.turn;
                     if (prevTurn && newTurn && prevTurn !== newTurn) {
