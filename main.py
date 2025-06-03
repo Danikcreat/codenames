@@ -219,3 +219,9 @@ async def end_turn(game_id: str):
         except Exception as e:
             print(f"Failed to send WebSocket message in {game_id}: {e}")
     return {"status": "ok"}
+
+# Чтобы запустить сервер на локальном компьютере, выполните следующую команду в терминале:
+# uvicorn main:app --reload
+
+# Чтобы запустить сервер для доступа на всех устройсках в сети, выполните следующую команду в терминале:
+# uvicorn main:app --host 0.0.0.0 --port 8000 
